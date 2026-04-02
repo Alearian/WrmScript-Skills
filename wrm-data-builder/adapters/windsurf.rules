@@ -1,0 +1,93 @@
+# WRM Data Builder Rules
+
+When designing PostgreSQL schemas for WormScript (WRM) projects, apply these rules.
+
+## Workflow
+
+**1. Gather requirements** — accept descriptions, entity lists, or partial SQL. Ask about row volumes, auth, multi-tenancy, and file upload needs if unclear.
+
+**2. Recommend features** — confirm before generating SQL.
+- Users/login → `FEATURE USERS`
+- Auth/roles/permissions → `FEATURE AUTH` (includes USERS, ORGANISATIONS, BASE)
+- Multiple clients/tenants → `FEATURE ORGANISATIONS`
+- File uploads → `FEATURE FILEHANDLING`
+- Metadata/tagging → `FEATURE ENTITYCONFIG`
+- Dynamic forms → `FEATURE FORMS`
+- Subscriptions/billing → `FEATURE SUBSCRIPTIONS`
+
+**3. Detect conflicts** — check user columns against reserved names. NEVER silent-resolve; always ask the user. Reserved: `created_at`, `updated_at`, `is_deleted`, `created_by`, `updated_by` (BASE); `organisation_id` (ORGANISATIONS); `role_id`, `permission_id` (AUTH); `attachment_id`, `folder_id` (FILEHANDLING).
+
+**4. Classify tables** — apply automatically, explain to user.
+- Fixed reference ≤20 rows → `COMMENT ON TABLE ... IS 'ENUM'` (no LIKE tracking, include INSERTs)
+- Expected >10,000 rows → `COMMENT ON TABLE ... IS 'PAGED'`
+- System-managed → `COMMENT ON TABLE ... IS 'READONLY'`
+- Audit log → `COMMENT ON TABLE ... IS 'EVENT'`
+- File attachments → `COMMENT ON TABLE ... IS 'ATTACHMENTS'`
+- Hidden from API → `COMMENT ON TABLE ... IS 'HIDE'`
+
+Apply column comments:
+- All FK columns and natural lookup keys → `COMMENT ON COLUMN ... IS '##'`
+- Org-scoped FK → `COMMENT ON COLUMN ... IS '##&organisation_id'`
+- Display name → `COMMENT ON COLUMN ... IS 'NAME'`
+- Sensitive field → `COMMENT ON COLUMN ... IS 'HIDE'`
+
+Do NOT write `CREATE LOOKUP` — WRM auto-generates from `##`.
+
+**5. SQL rules (non-negotiable)**
+
+- All user tables in `public` — no schema prefix except `base.*` LIKE refs. Any other schema prefix: move to public silently, then notify: *"Table moved to `public`. WRM currently requires all user tables in public — request multi-schema at https://github.com/Alearian/WormScript/issues"*
+- Column order: **PK → LIKE clauses → FK columns → other columns**
+- PK always first: `INTEGER` or `BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY`
+- `LIKE base.tracking INCLUDING DEFAULTS INCLUDING CONSTRAINTS` on all standard tables (not ENUM/EVENT)
+- Table names: plural snake_case. PK: `{singular}_id`. FK columns end in `_id`.
+
+**6. Output three blocks:**
+
+Block 1 — Annotated SQL (fenced, labelled `.wrm/ProjectName.sql`)
+Block 2 — `.wrm` snippet with features + `DATABASE RUN` per file:
+```
+CREATE PROJECT <Name>
+    FEATURE SWAGGER
+    FEATURE SOFT DELETE
+    FEATURE AUTH
+    CONNECTION POSTGRES 'Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=<Name>';
+
+DATABASE RUN '.wrm/<Name>.sql';
+
+CREATE TESTDATA IFEMPTY TESTCASES 10;
+CREATE MODELS;
+CREATE API CONTROLLERS SERVICE OVERWRITE;
+CREATE COMPONENTS;
+```
+Block 3 — Classification summary table
+
+## Quick patterns
+
+**Standard:**
+```sql
+CREATE TABLE items (
+    item_id         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    LIKE base.tracking INCLUDING DEFAULTS INCLUDING CONSTRAINTS,
+    organisation_id INTEGER NOT NULL REFERENCES organisations(organisation_id),
+    category_id     INTEGER NOT NULL REFERENCES categories(category_id),
+    item_name       VARCHAR(200) NOT NULL
+);
+COMMENT ON TABLE items IS 'PAGED';
+COMMENT ON COLUMN items.organisation_id IS '##&organisation_id';
+COMMENT ON COLUMN items.category_id IS '##';
+COMMENT ON COLUMN items.item_name IS 'NAME, ##';
+```
+
+**ENUM:**
+```sql
+CREATE TABLE categories (
+    category_id    INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    category_code  VARCHAR(50) NOT NULL UNIQUE,
+    category_name  VARCHAR(100) NOT NULL,
+    display_order  INTEGER NOT NULL DEFAULT 0
+);
+COMMENT ON TABLE categories IS 'ENUM';
+COMMENT ON COLUMN categories.category_code IS '##';
+COMMENT ON COLUMN categories.category_name IS 'NAME';
+INSERT INTO categories (category_code, category_name, display_order) VALUES ('A', 'Category A', 1);
+```

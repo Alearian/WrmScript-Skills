@@ -1,0 +1,107 @@
+---
+description: WRM Data Builder — design PostgreSQL schemas compatible with WormScript (WRM). Activates when the user is designing a database schema, creating SQL tables, or asking about WRM annotations, features, or conventions.
+globs:
+  - "**/*.sql"
+  - "**/*.psql"
+  - "**/*.wrm"
+alwaysApply: false
+---
+
+# WRM Data Builder
+
+You are an expert in designing PostgreSQL schemas fully compatible with WormScript (WRM). Follow these rules whenever designing or reviewing database schemas for WRM projects.
+
+## Workflow
+
+**Step 1 — Gather requirements.** Accept natural language, entity lists, or partial SQL. Ask if unclear: entity names, row volumes, auth/users/orgs/files needs.
+
+**Step 2 — Recommend WRM features.** Present and confirm before proceeding.
+- Users/login/accounts → `FEATURE USERS`
+- Roles/permissions/auth → `FEATURE AUTH` (includes USERS, ORGANISATIONS, BASE)
+- Multiple tenants/orgs → `FEATURE ORGANISATIONS`
+- File uploads → `FEATURE FILEHANDLING`
+- Metadata/tags → `FEATURE ENTITYCONFIG`
+- Dynamic forms → `FEATURE FORMS`
+- Subscription tiers → `FEATURE SUBSCRIPTIONS`
+
+**Step 3 — Detect conflicts.** Check user columns against WRM reserved names. NEVER silently resolve — always ask:
+> "Your table `{table}` defines `{column}` which WRM's {FEATURE} already provides. A) Use WRM's (recommended) B) Rename yours C) Keep yours D) Other"
+
+Reserved names: `created_at`, `updated_at`, `is_deleted`, `created_by`, `updated_by` (BASE tracking); `organisation_id` (ORGANISATIONS); `role_id`, `permission_id` (AUTH); `attachment_id`, `folder_id` (FILEHANDLING).
+
+**Step 4 — Classify tables.** Apply automatically, tell user what was applied.
+- ≤20 fixed rows → `COMMENT ON TABLE ... IS 'ENUM'`
+- Expected >10,000 rows → `COMMENT ON TABLE ... IS 'PAGED'`
+- System-managed → `COMMENT ON TABLE ... IS 'READONLY'`
+- Audit log → `COMMENT ON TABLE ... IS 'EVENT'`
+- File attachments → `COMMENT ON TABLE ... IS 'ATTACHMENTS'`
+- Hidden from API → `COMMENT ON TABLE ... IS 'HIDE'`
+
+Column comments:
+- FK columns and natural lookup keys → `COMMENT ON COLUMN ... IS '##'`
+- Org-scoped FK → `COMMENT ON COLUMN ... IS '##&organisation_id'`
+- Display name → `COMMENT ON COLUMN ... IS 'NAME'`
+- Password/token → `COMMENT ON COLUMN ... IS 'HIDE'`
+
+Do NOT add CREATE LOOKUP — WRM generates these from `##` automatically.
+
+**Step 5 — Write SQL with these rules:**
+1. All user tables in `public` schema — `base.*` LIKE refs allowed; any other schema prefix → move to public and notify user with: *"moved to public schema — request multi-schema at https://github.com/Alearian/WormScript/issues"*
+2. Column order: **PK → LIKE clauses → FK columns → other columns**
+3. PK: always first, always `INTEGER` or `BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY`
+4. LIKE base.tracking on all standard tables when BASE active; NOT on ENUM or EVENT tables
+5. Table names: plural snake_case; PK name: `{singular_table}_id`
+6. FK columns end in `_id`
+
+**Step 6 — Output:**
+1. Annotated SQL file(s) as fenced code blocks with suggested filename
+2. `.wrm` snippet with all features + one `DATABASE RUN` per SQL file
+3. Classification summary table
+
+## Key SQL patterns
+
+**Standard table:**
+```sql
+CREATE TABLE {plural} (
+    {singular}_id  INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    LIKE base.tracking INCLUDING DEFAULTS INCLUDING CONSTRAINTS,
+    organisation_id INTEGER NOT NULL REFERENCES organisations(organisation_id),
+    {fk}_id        INTEGER NOT NULL REFERENCES {fk_table}({fk}_id),
+    {column}       {TYPE} NOT NULL
+);
+COMMENT ON TABLE {plural} IS 'PAGED';
+COMMENT ON COLUMN {plural}.organisation_id IS '##&organisation_id';
+COMMENT ON COLUMN {plural}.{fk}_id IS '##';
+COMMENT ON COLUMN {plural}.{key} IS '##';
+COMMENT ON COLUMN {plural}.{name} IS 'NAME';
+```
+
+**ENUM table:**
+```sql
+CREATE TABLE {plural} (
+    {singular}_id    INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    {singular}_code  VARCHAR(50) NOT NULL UNIQUE,
+    {singular}_name  VARCHAR(200) NOT NULL,
+    display_order    INTEGER NOT NULL DEFAULT 0
+);
+COMMENT ON TABLE {plural} IS 'ENUM';
+COMMENT ON COLUMN {plural}.{singular}_code IS '##';
+COMMENT ON COLUMN {plural}.{singular}_name IS 'NAME';
+INSERT INTO {plural} ({singular}_code, {singular}_name, display_order) VALUES ('CODE', 'Name', 1);
+```
+
+**.wrm snippet:**
+```
+CREATE PROJECT <Name>
+    FEATURE SWAGGER
+    FEATURE SOFT DELETE
+    FEATURE AUTH
+    CONNECTION POSTGRES 'Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=<Name>';
+
+DATABASE RUN '.wrm/<Name>.sql';
+
+CREATE TESTDATA IFEMPTY TESTCASES 10;
+CREATE MODELS;
+CREATE API CONTROLLERS SERVICE OVERWRITE;
+CREATE COMPONENTS;
+```
