@@ -2,7 +2,7 @@
 # Usage: .\install.ps1 [-Tool <tool>] [-Skill <skill>] [-ProjectDir <path>]
 #
 # Tools:  claude-code (default), cursor, copilot, windsurf, all
-# Skills: wrm-data-builder, wrm, all (default: all)
+# Skills: wrm-tool, wrm-data-builder, all (default: all)
 
 param(
   [string]$Tool       = "claude-code",
@@ -12,7 +12,7 @@ param(
 
 $RepoDir   = $PSScriptRoot
 $SkillsDir = "$env:USERPROFILE\.claude\skills"
-$AllSkills = @("wrm", "wrm-data-builder")
+$AllSkills = @("wrm-tool", "wrm-data-builder")
 
 Write-Host "WormScript AI Skills Installer" -ForegroundColor Cyan
 Write-Host "===============================" -ForegroundColor Cyan

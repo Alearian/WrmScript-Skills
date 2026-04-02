@@ -95,7 +95,7 @@ install_windsurf_skill() {
 
 # ── Skill list ─────────────────────────────────────────────────────────────────
 
-ALL_SKILLS=("wrm" "wrm-data-builder")
+ALL_SKILLS=("wrm-tool" "wrm-data-builder")
 
 get_skills() {
   if [[ "$SKILL" == "all" ]]; then

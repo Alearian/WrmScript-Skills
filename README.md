@@ -10,13 +10,16 @@ Supports **Claude Code**, **Cursor**, **GitHub Copilot**, **Windsurf**, and any 
 
 ## Skills included
 
-### `wrm`
-Full WRM project assistant. Use when you want to:
-- Create a new WRM project from scratch
+### `wrm-tool`
+WRM project and build assistant. Use when you want to:
+- Create a new WRM project and initialise it with `wrm init`
 - Write or edit a `.wrm` build script
-- Choose features, configure ports, set up Docker
-- Generate models, APIs, and web components
-- Deploy to Azure
+- Choose WRM features, configure ports, set up Docker
+- Generate models, APIs, and web components with `wrm build`
+- Deploy to Azure Container Apps or Azure Functions
+- Use `STAGE` to re-run one part of the build
+
+> SQL schema design is **not** this skill's responsibility — use `wrm-data-builder` for that.
 
 ### `wrm-data-builder`
 PostgreSQL schema designer for WRM. Use when you want to:
@@ -25,6 +28,8 @@ PostgreSQL schema designer for WRM. Use when you want to:
 - Add new tables to an existing WRM project
 - Understand which WRM features fit your data requirements
 - Get annotated SQL with correct `COMMENT ON` statements, `LIKE base.*` clauses, and a ready-to-paste `.wrm` snippet
+
+> The two skills work together: `wrm-data-builder` designs the SQL → `wrm-tool` wraps it in a `.wrm` build script and runs the build.
 
 ---
 
@@ -67,8 +72,8 @@ Run from inside the cloned repo, from your project directory:
 bash install.sh --skill wrm-data-builder               # macOS/Linux
 .\install.ps1 -Skill wrm-data-builder                  # Windows
 
-bash install.sh --skill wrm-data-builder --tool cursor # Cursor only
-.\install.ps1 -Skill wrm-data-builder -Tool cursor
+bash install.sh --skill wrm-tool --tool cursor         # wrm-tool for Cursor only
+.\install.ps1 -Skill wrm-tool -Tool cursor
 ```
 
 ### Any other tool (Zed, Aider, Continue, custom system prompt)
@@ -91,11 +96,12 @@ Trigger by name or naturally:
 > *"Add a subscription tier system to my WRM project"*
 
 ```
-/wrm
+/wrm-tool
 ```
 > *"Create a new WRM project called RevCamp with AUTH and FILEHANDLING"*
 > *"Update my .wrm script to add GraphQL support"*
 > *"Why isn't my wrm build finding my models?"*
+> *"Deploy my project to Azure Container Apps"*
 
 ### Other tools
 
@@ -110,11 +116,11 @@ README.md                           This file
 install.sh                          macOS/Linux installer
 install.ps1                         Windows installer
 
-wrm/
+wrm-tool/
   SKILL.md                          Claude Code skill
   COMMAND_REFERENCE.md              .wrm script syntax
   FEATURES.md                       Feature system details
-  SQL_CONVENTIONS.md                SQL naming and annotation rules
+  SQL_CONVENTIONS.md                Redirect → see wrm-data-builder
   EXAMPLES.md                       Real project examples
   README.md                         Skill readme
 
