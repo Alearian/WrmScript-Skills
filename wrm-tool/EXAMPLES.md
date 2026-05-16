@@ -292,6 +292,32 @@ CREATE COMPONENTS USER TEMPLATES "ITMSReact/UXTemplates" PATH "ITMSReact" OVERWR
 
 ---
 
+## Run and Deploy Lifecycle
+
+A typical end-to-end flow once the `.wrm` script is written:
+
+```bash
+# 1. Generate the .NET solution + components from the schema
+wrm build
+
+# 2. Run the API service locally (uses the script's HTTPS port)
+wrm run
+#    → opens https://localhost:<PORT>/swagger
+
+# 3. Deploy as a local Docker stack (API + Postgres)
+wrm deploy docker
+
+# Or run only the MCP service (script must have CREATE MCP SERVICE)
+wrm run mcp
+
+# Or deploy just the API container behind Cloudflare
+wrm deploy docker-cloudflare
+```
+
+`wrm run` and `wrm deploy` both pick the default `.wrm` script automatically when there is exactly one in `./.wrm`. To target a specific script, pass its name: `wrm run RevCamp`, `wrm deploy docker RevCamp`.
+
+---
+
 ## Common Patterns Summary
 
 | Pattern | Example |

@@ -2,6 +2,8 @@
 
 Features are optional capabilities enabled with `FEATURE <name>` in the CREATE PROJECT block. Features auto-include their dependencies.
 
+**This is the user-facing feature guide** — what each feature creates, when to use it, dependencies. For implementation details (how features gate templates, file copying, condition evaluation), see [`wrm-development/FEATURES.md`](../../wrm-development/FEATURES.md). For per-table feature configuration via SQL annotations, see [`wrm-development/TABLE_ANNOTATIONS.md`](../../wrm-development/TABLE_ANNOTATIONS.md).
+
 ---
 
 ## Feature Reference
@@ -158,16 +160,20 @@ Adds a GraphQL API layer alongside REST.
 
 ---
 
-### MCP
-**Keyword:** `FEATURE MCP`
-**Requires:** None
+### MCP — NOT a FEATURE
 
-Model Context Protocol endpoints for AI integration.
+> **There is no `FEATURE MCP`.** MCP is enabled by writing a separate top-level CREATE command, not by a `FEATURE` line.
 
-**Generated per table:**
-- `<Model>MCPController.cs` - MCP endpoint
+```wrm
+-- Correct: enable MCP via its own CREATE command
+CREATE MCP SERVICE;        -- generate the MCP service project
+-- or
+CREATE MCP CONTROLLERS;    -- generate MCP controllers only
+```
 
-**When to use:** The user wants AI tools to interact with the API via MCP.
+Internally, while emitting MCP files, `ProjectBuilder.PushFeature("MCP")` sets a transient flag so templates can check `//WRM_IF HasFeature("MCP")`. The user never writes `FEATURE MCP` — and doing so raises *"Unknown feature MCP"*.
+
+See the [`COMMAND_REFERENCE.md` § CREATE MCP](COMMAND_REFERENCE.md) section for full syntax.
 
 ---
 
@@ -181,14 +187,6 @@ Remote Procedure Call support via JSON-RPC.
 
 ---
 
-### TRACKING
-**Keyword:** `FEATURE TRACKING`
-**Requires:** None
-
-GPS/location tracking features.
-
----
-
 ### MULTIAPP
 **Keyword:** `FEATURE MULTIAPP`
 **Requires:** None
@@ -196,6 +194,75 @@ GPS/location tracking features.
 Supports multiple web applications accessing the same service with an Application ID.
 
 **Status:** Not fully implemented yet.
+
+---
+
+### SUBSCRIBERS
+**Keyword:** `FEATURE SUBSCRIBERS`
+**Requires:** None
+
+Generates event-subscriber scaffolding (templates in `Worm/Templates/Features/Subscribers/`).
+
+---
+
+### ADDITIONAL
+**Keyword:** `FEATURE ADDITIONAL`
+**Requires:** None
+
+Additional controller scaffolding hooks. Internal-extension flag.
+
+---
+
+### REDIS
+**Keyword:** `FEATURE REDIS ['<connection-string>']`
+**Requires:** None
+
+Enables the Redis caching feature. Gates `docker-compose.cache.yml`, `publish-docker-cache.ps1`, and Redis blocks in compose files.
+
+The optional quoted connection string immediately after the feature name sets `RedisConnectionString` in the generated `AppConfig`. Omit it if the connection is supplied via env var or `appsettings.json`.
+
+```wrm
+CREATE PROJECT MyApp
+    CONNECTION POSTGRES '...'
+    FEATURE REDIS 'localhost:6379';
+```
+
+> **Migration note:** the legacy `REDIS '<conn>'` CREATE PROJECT subcommand was removed. The parser now emits a hard error if it sees the old form — search-and-replace to `FEATURE REDIS '<conn>'`.
+
+---
+
+### RABBITMQ
+**Keyword:** `FEATURE RABBITMQ ['<connection-string>']`
+**Requires:** None
+
+Enables the RabbitMQ publishing feature (AMQP 0.9.1 via the `RabbitMQ.Client` .NET library).
+
+For each table whose `COMMENT ON TABLE` contains `PUBLISH=RABBITMQ`, WRM:
+- Forces `UseServiceLayer = true` (publisher hooks live on the service, not the repository).
+- Generates `<Entity>RabbitMqPublisher.cs` per entity.
+- Copies `RabbitMqConnectionHolder.cs` (process-wide singleton `IConnection`).
+- Adds `<PackageReference Include="RabbitMQ.Client" Version="6.8.1" />` to the API `.csproj`.
+- Includes a RabbitMQ service block in the generated docker-compose files plus a standalone `docker-compose.rabbit.yml` and `publish-docker-rabbit.ps1`.
+
+**Topology** (created lazily on first publish):
+- One project-wide topic exchange named `<projectlc>`.
+- One durable queue per entity, named `<projectlc>.<entitylc>`.
+- Bound with key `<projectlc>.<entitylc>.*`.
+- Publish operations route with key `<projectlc>.<entitylc>.{insert|update|delete}`.
+- Body is the DTO via `ModelDto.ToJson()` with `ContentType=application/json`, `DeliveryMode=2` (persistent).
+- List/IEnumerable overloads emit one message per entity.
+
+```wrm
+CREATE PROJECT ShopApp
+    CONNECTION POSTGRES '...'
+    FEATURE RABBITMQ 'amqp://guest:guest@localhost:5672/';
+```
+
+```sql
+COMMENT ON TABLE orders IS 'PUBLISH=RABBITMQ';
+```
+
+The default Docker image is `rabbitmq:3-management-alpine`. Swap to `dhi/rabbitmq` (Docker Hardened Images) by editing `docker-compose.rabbit.yml` after generation if you have a Docker subscription with hardened-images access.
 
 ---
 
@@ -226,11 +293,15 @@ FEATURE USERS
 FEATURE SWAGGER     (no dependencies, enabled by default)
 FEATURE NOSWAGGER   (no dependencies, disables Swagger)
 FEATURE GRAPHQL     (no dependencies)
-FEATURE MCP         (no dependencies)
 FEATURE RPC         (no dependencies)
-FEATURE TRACKING    (no dependencies)
 FEATURE MULTIAPP    (no dependencies)
+FEATURE SUBSCRIBERS (no dependencies)
+FEATURE ADDITIONAL  (no dependencies)
+FEATURE REDIS    ['<conn>']  (no dependencies — optional quoted connection string)
+FEATURE RABBITMQ ['<conn>']  (no dependencies — optional quoted connection string)
 ```
+
+> **Not features (do not use `FEATURE …`):** `MCP` is enabled by `CREATE MCP SERVICE` / `CREATE MCP CONTROLLERS` (top-level CREATE commands). Azure deployment is `CREATE AZURE CONTAINER` / `CREATE AZURE FUNCTIONS`. See [COMMAND_REFERENCE.md](COMMAND_REFERENCE.md).
 
 ---
 
@@ -243,7 +314,9 @@ FEATURE MULTIAPP    (no dependencies)
 | "user accounts" / "profiles" | `FEATURE USERS` |
 | "upload files" / "attachments" / "documents" | `FEATURE FILEHANDLING` |
 | "GraphQL" | `FEATURE GRAPHQL` |
-| "AI integration" / "MCP" | `FEATURE MCP` |
+| "AI integration" / "MCP" | `CREATE MCP SERVICE;` (top-level command — **not** a `FEATURE`) |
+| "Redis cache" | `FEATURE REDIS 'localhost:6379'` |
+| "publish events" / "RabbitMQ" / "message broker" | `FEATURE RABBITMQ 'amqp://guest:guest@localhost:5672/'` plus `PUBLISH=RABBITMQ` on the table comment |
 | "tags" / "custom metadata" / "key-value config" | `FEATURE ENTITYCONFIG` |
 | "no swagger" / "disable docs" | `FEATURE NOSWAGGER` |
 | "most real-world apps" | `FEATURE AUTH` (covers users, orgs, base) |

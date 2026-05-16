@@ -10,7 +10,14 @@ description: Operate WormScript (WRM) to create and build projects — .wrm scri
 
 This skill covers everything needed to create, configure, build, and deploy a WRM project. It operates the `wrm` CLI and writes `.wrm` build scripts.
 
-**Schema design is handled by a separate skill.** When the user needs a PostgreSQL schema designed or annotated for WRM, defer to `wrm-data-builder` (see [Step 3](#step-3-handle-the-database-schema)).
+**This skill is user-facing.** It does not document WRM internals or how the tool itself is built — for that, see the `wrm-development` skill.
+
+| Need | Skill |
+|------|-------|
+| Build a project as a user (this skill) | `wrm-tool` |
+| Design a PostgreSQL schema for WRM | `wrm-data-builder` |
+| Modify WRM source code itself | `wrm-development` |
+| Publish WRM to NuGet / release skills | `wrm-release` |
 
 **Tool**: `wrm` (installed via `dotnet tool install --global Wrm`)
 
@@ -18,6 +25,7 @@ Reference files:
 - [COMMAND_REFERENCE.md](COMMAND_REFERENCE.md) — Complete `.wrm` script syntax
 - [FEATURES.md](FEATURES.md) — All WRM features, what they create, and their dependencies
 - [EXAMPLES.md](EXAMPLES.md) — Real-world `.wrm` build scripts and project patterns
+- [SQL_CONVENTIONS.md](SQL_CONVENTIONS.md) — Brief SQL conventions (defers to `wrm-data-builder`)
 
 ---
 
@@ -152,9 +160,41 @@ wrm build                             # DATABASE RUN inside the script populates
 
 After build completes tell the user:
 - What was generated (models, controllers, components)
-- How to run the API: `cd <ProjectName>Service && dotnet run`
+- How to run the API: `wrm run` (from the project root)
 - Swagger URL: `https://localhost:<HTTPS_PORT>/swagger`
 - Any next steps (run database migrations, configure secrets, etc.)
+
+---
+
+### Step 7: Run the Service
+
+Start a generated API or MCP service locally without leaving the project root. Script selection follows the same rule as `wrm build` (uses the single `.wrm` file in `./.wrm`, or one named explicitly).
+
+```bash
+wrm run                       # API service from the default .wrm script
+wrm run <script>              # API service from a named script
+wrm run api [<script>]        # Explicit API target
+wrm run mcp [<script>]        # MCP service
+```
+
+The script must contain **exactly one** `CREATE API SERVICE` (for `wrm run` / `wrm run api`) or **exactly one** `CREATE MCP SERVICE` (for `wrm run mcp`). Each of `CREATE API SERVICE`, `CREATE API CONTROLLERS`, `CREATE MCP SERVICE`, `CREATE MCP CONTROLLERS` may appear at most once. The CLI shells out to `dotnet run` against the project's csproj.
+
+---
+
+### Step 8: Deploy
+
+`wrm deploy` runs `make-devcert.ps1` (HTTPS dev cert) followed by the chosen `publish-<target>.ps1` script that `CREATE API SERVICE` generates under `<ProjectName>Service/Development/`.
+
+```bash
+wrm deploy                       # default → publish-docker.ps1
+wrm deploy docker                # full local Docker stack (API + DB)
+wrm deploy docker-api            # API container only
+wrm deploy docker-mcp            # MCP service container
+wrm deploy docker-cloudflare     # Docker image with Cloudflare tunnel
+wrm deploy dotnet                # plain dotnet publish (self-contained binaries)
+```
+
+Errors clearly when the requested `publish-<target>.ps1` is not found in the project's `Development/` folder.
 
 ---
 
@@ -162,19 +202,21 @@ After build completes tell the user:
 
 See [FEATURES.md](FEATURES.md) for full details on what each feature creates.
 
-| User Need | Feature |
+| User Need | How to enable |
 |---|---|
-| Audit timestamps (created_at, updated_at, is_deleted) | `BASE` |
-| Multiple organisations / tenants | `ORGANISATIONS` (auto-includes BASE) |
-| User accounts, profiles, groups | `USERS` (auto-includes BASE) |
-| Login, JWT auth, roles, permissions | `AUTH` (auto-includes BASE, ORGANISATIONS, USERS) |
-| File uploads, document attachments | `FILEHANDLING` (auto-includes BASE, ORGANISATIONS, USERS) |
-| Key-value metadata on entities | `ENTITYCONFIG` (auto-includes BASE) |
-| GraphQL API layer | `GRAPHQL` |
-| AI / Model Context Protocol integration | `MCP` |
-| RPC-JSON command execution | `RPC` |
+| Audit timestamps (created_at, updated_at, is_deleted) | `FEATURE BASE` |
+| Multiple organisations / tenants | `FEATURE ORGANISATIONS` (auto-includes BASE) |
+| User accounts, profiles, groups | `FEATURE USERS` (auto-includes BASE) |
+| Login, JWT auth, roles, permissions | `FEATURE AUTH` (auto-includes BASE, ORGANISATIONS, USERS) |
+| File uploads, document attachments | `FEATURE FILEHANDLING` (auto-includes BASE, ORGANISATIONS, USERS) |
+| Key-value metadata on entities | `FEATURE ENTITYCONFIG` (auto-includes BASE) |
+| GraphQL API layer | `FEATURE GRAPHQL` |
+| Redis caching | `REDIS '<conn>'` CREATE PROJECT subcommand (auto-enables `FEATURE REDIS`) |
+| RPC-JSON command execution | `FEATURE RPC` |
+| AI / Model Context Protocol integration | `CREATE MCP SERVICE;` (top-level command — **not** a `FEATURE`) |
+| Azure deployment | `CREATE AZURE CONTAINER ... ;` / `CREATE AZURE FUNCTIONS ... ;` (top-level commands — **not** features) |
 
-**Dependency graph:**
+**Dependency graph (FEATURE auto-inclusions):**
 ```
 AUTH ──────► USERS ──────► BASE
          ├─► ORGANISATIONS ─► BASE
@@ -189,7 +231,9 @@ ENTITYCONFIG ─► BASE
 - "users", "accounts", "profiles" → `FEATURE USERS`
 - "file upload", "attachments", "documents" → `FEATURE FILEHANDLING`
 - "GraphQL" → `FEATURE GRAPHQL`
-- "AI tools", "MCP", "Model Context Protocol" → `FEATURE MCP`
+- "Redis" / "caching" → `REDIS 'host:port'` CREATE PROJECT subcommand
+- "AI tools", "MCP", "Model Context Protocol" → `CREATE MCP SERVICE;` (NOT a feature)
+- "Azure" / "deploy to Azure" → `CREATE AZURE CONTAINER ...` (NOT a feature)
 - Most real-world apps need at least `FEATURE AUTH`
 
 ---
@@ -233,10 +277,11 @@ Custom templates: `CREATE COMPONENTS USER TEMPLATES "<path>" PATH "<path>"`
 ## Deployment
 
 ### Docker (local)
-`CREATE API SERVICE` generates `docker-compose.yml` and `Dockerfile` in the project root. Run with:
+`CREATE API SERVICE` generates `docker-compose.yml`, `Dockerfile`, and the `Development/publish-*.ps1` scripts in the project root. The simplest path is:
 ```bash
-docker compose up
+wrm deploy docker
 ```
+This runs `make-devcert.ps1` then `publish-docker.ps1`. To run the raw compose stack manually instead: `docker compose up`.
 
 ### Azure Container Apps
 ```wrm
@@ -320,3 +365,21 @@ CREATE COMPONENTS COREUI OVERWRITE;
 - Deploying to Docker, Azure Container Apps, or Azure Functions?
 - Custom frontend templates?
 - Re-running only part of the build (STAGE)?
+
+---
+
+## For Developers Modifying WRM Itself
+
+This skill is for **end users**. If you need to modify the `wrm` tool itself — add features, fix bugs, change templates, add a new database engine — switch to the [`wrm-development` skill](../../wrm-development/SKILL.md). It covers:
+
+- Source code architecture and key files
+- Building/testing WRM locally vs using the released NuGet
+- Code patterns for adding writers, features, commands, engines
+- Template engine internals
+- Service layer (caching, publishers, notifiers)
+- Docker file gating logic
+- Common pitfalls
+
+The project's [`CLAUDE.md`](../../../WRM/WormScript/CLAUDE.md) is a high-level summary that links into `wrm-development` for detailed internals.
+
+To **release** WRM updates or skill updates, see the [`wrm-release` skill](../../WrmScript-Release/SKILL.md).

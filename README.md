@@ -4,7 +4,8 @@ Expert AI skills for [WormScript (WRM)](https://github.com/Alearian/WormScript) 
 
 These skills give AI assistants deep knowledge of WRM conventions, annotations, features, and patterns so they can help you design schemas and build projects correctly, first time.
 
-Supports **Claude Code**, **Cursor**, **GitHub Copilot**, **Windsurf**, and any tool that accepts a custom system prompt.
+**WRM Version:** 3.3.5-WIP (3.3.4 released)  
+**Supports:** Claude Code, Cursor, GitHub Copilot, Windsurf, and any tool that accepts a custom system prompt.
 
 ---
 

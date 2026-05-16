@@ -47,9 +47,13 @@ Out of the box :
 - [Contributing](#contributing)
 
 **Additional Documentation:**
-- [Architecture](Docs/Architecture.md) - public architecture and build process
-- [Template System](Docs/TemplateSystem.md) - Template markers and available templates
-- [Features](Docs/Features.md) - Feature system details
+- [SKILL.md](SKILL.md) — User workflow and step-by-step guide
+- [COMMAND_REFERENCE.md](COMMAND_REFERENCE.md) — Complete `.wrm` script syntax
+- [FEATURES.md](FEATURES.md) — Feature system details
+- [EXAMPLES.md](EXAMPLES.md) — Real-world build script patterns
+- [SQL_CONVENTIONS.md](SQL_CONVENTIONS.md) — SQL conventions (defers to `wrm-data-builder`)
+
+**For developers modifying WRM itself:** see the [`wrm-development` skill](../../wrm-development/SKILL.md) for source code architecture, build/test workflows, and code patterns.
 
 ---
 
@@ -308,6 +312,33 @@ CONNECTION POSTGRES 'Host=localhost:5432;Database=mydb;Username=user;Password=pa
 -- MySQL
 CONNECTION MYSQL 'Server=localhost;Database=mydb;User=user;Password=pass'
 ```
+
+#### DATABASE RUN vs DATABASE SEED
+
+Two commands execute SQL scripts at different stages:
+
+**DATABASE RUN** — Executes during schema creation (early in the build):
+- Used for: Creating tables, adding columns, defining schemas, custom functions
+- Timing: Runs during `CREATE MODELS` stage
+- Use when: Tables need to exist before code generation
+
+```wrm
+DATABASE RUN '.wrm/MyProject.sql'           -- Main schema
+DATABASE RUN 'sql/custom-functions.sql'    -- Database functions
+```
+
+**DATABASE SEED** — Executes at the very end (after everything is built):
+- Used for: Populating lookup tables, seeding reference data, inserting default records
+- Timing: Runs after all code generation and features are processed
+- Use when: Data should be inserted after the schema is complete to avoid conflicts with WRM-generated seed data
+
+```wrm
+DATABASE SEED 'sql/seed-enums.sql'         -- Populate ENUM tables
+DATABASE SEED 'sql/seed-organisations.sql' -- Create default organisations
+DATABASE SEED 'sql/seed-roles.sql'         -- Seed default roles/permissions
+```
+
+**Key difference:** Use `DATABASE SEED` to avoid conflicts when features (like `AUTH` or `ORGANISATIONS`) also seed data. This is why `DATABASE SEED` conflicts were fixed in v3.3.4.
 
 ---
 
@@ -901,6 +932,6 @@ Working the wording on an AGPL licence but bascially:
 
 *Transform your database into a ready-to-start application in minutes.*
 
-**Version:** 3.3.3
+**Version:** 3.3.5-WIP (3.3.4 released)
 **Framework:** .NET 9.0
 **License:** Furniss Software (c) 2026
