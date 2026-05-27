@@ -205,6 +205,36 @@ Generates event-subscriber scaffolding (templates in `Worm/Templates/Features/Su
 
 ---
 
+### MESSAGING
+**Keyword:** `FEATURE MESSAGING`
+**Requires:** BASE, USERS (auto-included)
+
+Adds backend support for three independent messaging subdomains, all under the `wrm_messaging` schema:
+
+- **Direct messages** (email-style) — a user composes a message (up to 1024 chars), addresses one or more user IDs and/or user-group IDs, sets a priority, and sends. The send endpoint reads the sender from the authenticated `UserContext` — there is no `senderUserId` field in the request, so impersonation is structurally prevented.
+- **Conversations** (chat-box) — threaded posts inside a `conversations` row of type `direct`, `group`, or `system`. Standard CRUD; the feature provides only the schema.
+- **Notifications** (system → user, one-way) — `notifications` table for system-raised alerts. No human sender.
+
+Two ENUM tables are shared across all three subdomains: `send_states` (`SENT` → `DELIVERED` → `VIEWED`) and `priorities` (`LOW`, `NORMAL`, `HIGH`).
+
+When `FEATURE ORGANISATIONS` is also enabled, the direct-message send flow rejects recipients outside the sender's organisation hierarchy. With ORGANISATIONS off, no boundary check is applied.
+
+Generated artefacts:
+- `ProjectApi/Messaging/MessagingService.cs` — send + state-transition logic.
+- `ProjectApi/Messaging/MessagesAdditionalController.cs` — `POST /api/messages/send`, `PUT /api/messages/{id}/delivered`, `PUT /api/messages/{id}/viewed`.
+- `services.AddMessagingServices()` is injected into `Startup.ConfigureServices`.
+
+Unread messages are pulled via the auto-generated `GET /api/messageRecipients/findByRecipientUserId/{userId}` endpoint; filter the result by `sendStateId != VIEWED` client-side. Push notifications are out of scope for the current iteration.
+
+```wrm
+CREATE PROJECT MyApp
+    CONNECTION POSTGRES '...'
+    FEATURE AUTH
+    FEATURE MESSAGING;
+```
+
+---
+
 ### ADDITIONAL
 **Keyword:** `FEATURE ADDITIONAL`
 **Requires:** None
@@ -296,6 +326,9 @@ FEATURE GRAPHQL     (no dependencies)
 FEATURE RPC         (no dependencies)
 FEATURE MULTIAPP    (no dependencies)
 FEATURE SUBSCRIBERS (no dependencies)
+FEATURE MESSAGING
+  └─► FEATURE USERS
+        └─► FEATURE BASE
 FEATURE ADDITIONAL  (no dependencies)
 FEATURE REDIS    ['<conn>']  (no dependencies — optional quoted connection string)
 FEATURE RABBITMQ ['<conn>']  (no dependencies — optional quoted connection string)
@@ -314,6 +347,7 @@ FEATURE RABBITMQ ['<conn>']  (no dependencies — optional quoted connection str
 | "user accounts" / "profiles" | `FEATURE USERS` |
 | "upload files" / "attachments" / "documents" | `FEATURE FILEHANDLING` |
 | "GraphQL" | `FEATURE GRAPHQL` |
+| "send messages between users" / "chat" / "notifications" | `FEATURE MESSAGING` |
 | "AI integration" / "MCP" | `CREATE MCP SERVICE;` (top-level command — **not** a `FEATURE`) |
 | "Redis cache" | `FEATURE REDIS 'localhost:6379'` |
 | "publish events" / "RabbitMQ" / "message broker" | `FEATURE RABBITMQ 'amqp://guest:guest@localhost:5672/'` plus `PUBLISH=RABBITMQ` on the table comment |
