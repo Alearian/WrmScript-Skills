@@ -139,6 +139,23 @@ Common FK columns that conflict:
 
 ---
 
+## Columns injected by INTEGRATIONS feature (57-integrations.psql)
+
+Active when: `FEATURE INTEGRATIONS`.
+
+Reserved table names:
+- `integration_connection_types`
+- `integration_connections`
+- `integration_entity_mappings`
+
+Common FK columns that conflict:
+| Column | Notes |
+|---|---|
+| `integration_connection_type_id` | FK to integration_connection_types |
+| `integration_connection_id` | FK to integration_connections |
+
+---
+
 ## Columns injected by FORMS feature (60-formmanagement.psql)
 
 Active when: `FEATURE FORMS`.

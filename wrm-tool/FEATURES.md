@@ -135,14 +135,16 @@ COMMENT ON TABLE documents IS 'PAGED, ATTACHMENTS';
 **Keyword:** `FEATURE ENTITYCONFIG` (also `FEATURE CONFIG`)
 **Requires:** BASE
 
-Key-value metadata that can be attached to any entity.
+Key-value metadata and tagging that can be attached to any entity.
 
 **Tables created:**
 | Table | Description |
 |-------|-------------|
-| `entity_configs` | Key-value pairs associated with entity_type + entity_id |
+| `entity_configs` | Key-value pairs attached to any entity (`entity_type` + `entity_id` + `item_key` + `item_value`). FindBy endpoints generated on `entity_id`, `entity_type`, and `item_key`. |
+| `entity_allowed_tags` | Catalogue of allowed tag values per entity type. Define which tags are permitted for each entity type (e.g. users can be tagged `"pastor"`, `"musician"`). |
+| `entity_tags` | Assigns an allowed tag to a specific entity (`entity_type` + `entity_id` → `entity_allowed_tag_id` FK). FindBy endpoint on `entity_type&entity_id`. |
 
-**When to use:** The user needs tags, custom configuration, or arbitrary metadata on entities.
+**When to use:** The user needs tags, custom configuration, or arbitrary metadata on entities without adding columns to each table.
 
 ---
 
@@ -231,6 +233,52 @@ CREATE PROJECT MyApp
     CONNECTION POSTGRES '...'
     FEATURE AUTH
     FEATURE MESSAGING;
+```
+
+---
+
+### INTEGRATIONS
+**Keyword:** `FEATURE INTEGRATIONS` (the singular `FEATURE INTEGRATION` is also accepted)
+**Requires:** BASE (auto-included)
+
+Adds backend scaffolding for connecting the project to external systems and tracking which local records map to their external counterparts.
+
+**Tables created:**
+| Table | Description |
+|-------|-------------|
+| `integration_connection_types` | ENUM catalogue of supported external systems — seeded with `jira`, `confluence`, `miro`, `aws`, `azure`, `servicenow`, `salesforce`, `visio`, `excel`, `generic_rest`, `slack`, `teams`, `sharepoint`, `email`, `youtube`, `linkedin`, `github`, `what3words` |
+| `integration_connections` | One row per configured connection. `name`, `is_active`, `last_synced_at`, plus `connection_config JSONB` (`HIDE`) for endpoint params and credential references |
+| `integration_entity_mappings` | Maps a local entity (`local_entity_type` + `local_entity_id`) to its external counterpart (`external_entity_ref`) for a given connection. Unique index prevents duplicate mappings per connection |
+
+**Org scoping:** When `FEATURE ORGANISATIONS` is also active, `integration_connections` gains an `organisation_id` column (via `LIKE base.tracking`) and a `FindByOrganisationId` lookup endpoint, scoping connections per tenant. Without ORGANISATIONS, connections are global to the project.
+
+**Auto-generated endpoints (via `##` column annotations):**
+- `GET /api/integrationConnections/findByIntegrationConnectionTypeId/{id}` — connections of a given type
+- `GET /api/integrationEntityMappings/findByIntegrationConnectionId/{id}` — all mappings for a connection
+- `GET /api/integrationEntityMappings/findByLocalEntityTypeAndLocalEntityId/{type}/{id}` — external refs for a local entity
+
+**Security:** `connection_config` and `mapping_config` are marked `HIDE` — excluded from all DTOs and API responses. They store a **reference** to credentials (e.g. a secrets vault key), never raw passwords or tokens. The application layer is responsible for resolving the reference at runtime.
+
+**When to use:** The project needs to connect to, sync with, or track records in external systems (Jira issues, GitHub PRs, Salesforce opportunities, AWS resources, etc.).
+
+**What the developer still needs to do after generation:**
+
+> ⚠️ WRM scaffolds the data model. The integration logic itself is left to the developer.
+
+| Task | Detail |
+|------|--------|
+| **Customise connection-type seed list** | `integration_connection_types` is seeded with a generic list. Add or remove rows in your `.sql` file to match the systems your project actually uses |
+| **Define `connection_config` JSON structure** | Each integration type needs a documented JSONB schema (e.g. `{ "base_url": "...", "credential_key": "vault://..." }`). Enforce with a JSON Schema validator or PostgreSQL check constraint |
+| **Wire credentials vault** | The application layer must resolve `credential_key` (or equivalent field) to the actual secret at runtime. WRM does not generate vault-resolver code |
+| **Implement sync logic** | WRM generates CRUD endpoints for connections and mappings, not sync runners. Write services that call external APIs, update `last_synced_at`, and populate `integration_entity_mappings` |
+| **Establish `local_entity_type` convention** | Decide what string identifies each table (e.g. plural snake_case `orders`, or class name `Order`). Document it in your project and use it consistently when inserting mapping rows |
+| **Audit generated controllers** | Although `connection_config` is `HIDE`, verify that your generated `POST /api/integrationConnections` and `PUT` endpoints do not inadvertently echo any part of the config object in error messages |
+
+```wrm
+CREATE PROJECT MyApp
+    CONNECTION POSTGRES '...'
+    FEATURE ORGANISATIONS
+    FEATURE INTEGRATIONS;
 ```
 
 ---
@@ -329,6 +377,8 @@ FEATURE SUBSCRIBERS (no dependencies)
 FEATURE MESSAGING
   └─► FEATURE USERS
         └─► FEATURE BASE
+FEATURE INTEGRATIONS
+  └─► FEATURE BASE
 FEATURE ADDITIONAL  (no dependencies)
 FEATURE REDIS    ['<conn>']  (no dependencies — optional quoted connection string)
 FEATURE RABBITMQ ['<conn>']  (no dependencies — optional quoted connection string)
@@ -352,5 +402,6 @@ FEATURE RABBITMQ ['<conn>']  (no dependencies — optional quoted connection str
 | "Redis cache" | `FEATURE REDIS 'localhost:6379'` |
 | "publish events" / "RabbitMQ" / "message broker" | `FEATURE RABBITMQ 'amqp://guest:guest@localhost:5672/'` plus `PUBLISH=RABBITMQ` on the table comment |
 | "tags" / "custom metadata" / "key-value config" | `FEATURE ENTITYCONFIG` |
+| "connect to Jira / Slack / GitHub / AWS" / "external integrations" / "sync with external system" | `FEATURE INTEGRATIONS` |
 | "no swagger" / "disable docs" | `FEATURE NOSWAGGER` |
 | "most real-world apps" | `FEATURE AUTH` (covers users, orgs, base) |

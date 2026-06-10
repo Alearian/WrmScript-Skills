@@ -91,6 +91,21 @@ Auto-includes: ORGANISATIONS, USERS, BASE
 
 ---
 
+### INTEGRATIONS (57-integrations.psql)
+**Tables created:** `integration_connection_types` (ENUM), `integration_connections`, `integration_entity_mappings`
+
+Signals:
+- "Connect to Jira / GitHub / Slack / AWS / Azure / Salesforce"
+- "Sync with an external system"
+- "Track which local records correspond to external records"
+- "Integration catalogue", "connection management", "external system mapping"
+- Bi-directional sync, conflict detection, external record references
+- When `FEATURE ORGANISATIONS` is active, connections are scoped per tenant
+
+Auto-includes: BASE
+
+---
+
 ### FORMS (60-formmanagement.psql)
 **Tables created:** `form_definitions`, `field_definitions`
 
@@ -130,6 +145,7 @@ FILEHANDLING ─────────► ORGANISATIONS ─► BASE
   └──────────────────► USERS ──────► BASE
 
 ENTITYCONFIG ──────────────────────► BASE
+INTEGRATIONS ──────────────────────► BASE
 ORGANISATIONS ─────────────────────► BASE
 USERS ─────────────────────────────► BASE
 FORMS ─────────────────────────────► (standalone)
@@ -153,6 +169,7 @@ When recommending FILEHANDLING, you automatically include: ORGANISATIONS, USERS,
 | FILEHANDLING | `FEATURE FILEHANDLING` |
 | FORMS | `FEATURE FORMS` |
 | SUBSCRIPTIONS | `FEATURE SUBSCRIPTIONS` |
+| INTEGRATIONS | `FEATURE INTEGRATIONS` |
 | GraphQL API | `FEATURE GRAPHQL` |
 | MCP server | `FEATURE MCP` |
 | OpenAPI/Swagger | `FEATURE SWAGGER` (default on) |
@@ -171,6 +188,7 @@ When recommending FILEHANDLING, you automatically include: ORGANISATIONS, USERS,
 | AUTH | `30-authorisation.psql`, `35-neworg-rbac.psql` |
 | ENTITYCONFIG | `40-entityconfig.psql` |
 | FILEHANDLING | `50-entityattachments.psql` |
+| INTEGRATIONS | `57-integrations.psql` |
 | FORMS | `60-formmanagement.psql` |
 | SUBSCRIPTIONS | `70-subscriptions.psql` |
 | PostGIS/pgcrypto | `90-extensions.psql` |

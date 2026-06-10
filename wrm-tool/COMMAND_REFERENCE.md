@@ -236,30 +236,172 @@ CREATE MODEL FLAT StarSystemFull FROM star_systems HAVING ALL;
 
 ## CREATE API
 
-Generate API controllers and service project structure.
+Generate API controllers and service project structure. **At least one of `SERVICE` or `CONTROLLERS` must be specified** — `CREATE API;` alone is a parse error. Both may appear in the same command.
 
 ```wrm
-CREATE API [CONTROLLERS] [SERVICE] [OVERWRITE] [CLEAR] [FORMAT] [BUILD] [SWAGGER|NOSWAGGER] [PATH '<path>'];
+CREATE API <SERVICE|CONTROLLERS|SERVICE CONTROLLERS> [OVERWRITE] [CLEAR] [FORMAT] [BUILD] [SWAGGER|NOSWAGGER] [PATH '<path>'];
 ```
 
 | Option | Description |
 |--------|-------------|
-| `CONTROLLERS` | Generate controller files for each table |
-| `SERVICE` | Generate the API service project (Program.cs, config, Docker, etc.) |
-| `OVERWRITE` | Replace existing controller/service files |
-| `CLEAR` | Remove old controllers before generating |
+| `CONTROLLERS` | Generate per-entity REST controller and controller-service files |
+| `SERVICE` | Scaffold the full API service project (Program.cs, appsettings.json, Docker, middleware, etc.) |
+| `OVERWRITE` | Overwrite existing files without deleting anything first |
+| `CLEAR` | **Behaviour depends on mode — see warning below** |
 | `FORMAT` | Auto-format generated C# code |
 | `BUILD` | Build the service project after generation |
 | `SWAGGER` | Override global setting: enable Swagger for this API |
 | `NOSWAGGER` | Override global setting: disable Swagger for this API |
 | `PATH '<path>'` | Override output path for controllers |
 
+**`CLEAR` behaviour by mode:**
+
+| Mode | What `CLEAR` deletes |
+|------|----------------------|
+| `CONTROLLERS CLEAR` | Only the `Controllers\` and `Services\` subfolders inside the API project. All other project files are left untouched. |
+| `SERVICE CLEAR` | ⚠️ **The entire `{ProjectName}Api\` folder** — including any `.git` repository, all custom code, Docker config, middleware, and every file you have ever written or edited in that folder. |
+| `SERVICE CONTROLLERS CLEAR` | Same as `SERVICE CLEAR` — the whole folder is deleted before scaffolding, then controllers are generated fresh. |
+
+> ⚠️ **`CREATE API SERVICE CLEAR` is destructive and permanent.** It wipes the entire API project directory with no confirmation prompt — including any `.git` repository inside it, all code you have written or customised, all configuration, Docker files, and middleware. Back up or commit everything to a remote repository before using it. If you only want to remove stale generated controllers, use `CREATE API CONTROLLERS CLEAR` instead.
+
 Common combinations:
 ```wrm
-CREATE API CONTROLLERS SERVICE OVERWRITE;       -- Generate everything, overwrite existing
-CREATE API CONTROLLERS SERVICE OVERWRITE CLEAR; -- Full clean regeneration
-CREATE API SERVICE;                              -- Service project only (no per-table controllers)
+CREATE API SERVICE CONTROLLERS;           -- Scaffold project + generate controllers (preserve existing)
+CREATE API SERVICE CONTROLLERS OVERWRITE; -- Scaffold + generate; overwrite all existing files
+CREATE API SERVICE;                        -- Scaffold the project only (no per-entity controllers)
+CREATE API CONTROLLERS;                    -- Generate controllers only (project already exists)
+CREATE API CONTROLLERS CLEAR;             -- Remove stale controllers, then regenerate
+CREATE API SERVICE CLEAR;                 -- ⚠️ Delete entire project folder, then scaffold fresh
 ```
+
+---
+
+## CREATE MCP
+
+Generate a Model Context Protocol (MCP) server project alongside the main API.
+
+```wrm
+CREATE MCP [CONTROLLERS] [SERVICE] [STDIO] [HTTP=<port>] [HTTPS=<port>] [OVERWRITE] [CLEAR] [FORMAT] [BUILD] [TABLES (<table1>, <table2>, ...)] [PATH '<path>'];
+```
+
+| Option | Description |
+|--------|-------------|
+| `CONTROLLERS` | Generate MCP controller files for each table (or the filtered TABLES list) |
+| `SERVICE` | Generate the MCP service project (Program.cs, config, Docker, etc.) |
+| `STDIO` | Use stdio JSON-RPC transport instead of HTTP/SSE. No certificate is required; no ports are allocated. Use for desktop AI clients (Claude Desktop, VS Code Copilot) that launch the MCP server as a subprocess. |
+| `HTTP=<port>` | HTTP port for the MCP project. Default `5010`. Must differ from the API HTTP port. |
+| `HTTPS=<port>` | HTTPS port for the MCP project. Default `5011`. Must differ from the API HTTPS port. |
+| `OVERWRITE` | Replace existing MCP files |
+| `CLEAR` | Remove old MCP files before generating |
+| `FORMAT` | Auto-format generated C# code |
+| `BUILD` | Build the MCP service project after generation |
+| `TABLES (<list>)` | Restrict controller generation to the named tables only |
+| `PATH '<path>'` | Override output path for controllers |
+
+> **Port conflict guard:** When `SERVICE` is specified without `STDIO`, WRM raises a hard error if the MCP HTTP/HTTPS ports clash with the main API ports. Use `HTTP=` and `HTTPS=` to resolve conflicts explicitly.
+
+Common combinations:
+```wrm
+-- HTTP/SSE transport (remote clients, Azure Container Apps)
+CREATE MCP SERVICE CONTROLLERS OVERWRITE;
+
+-- stdio transport (Claude Desktop, local AI tools)
+CREATE MCP SERVICE CONTROLLERS STDIO OVERWRITE;
+
+-- Custom ports to avoid clash with API on 5000/5001
+CREATE MCP SERVICE CONTROLLERS HTTP=5010 HTTPS=5011 OVERWRITE;
+
+-- Generate MCP controllers for a subset of tables only
+CREATE MCP CONTROLLERS TABLES (products, orders, customers);
+```
+
+`CREATE MCP` must appear **after** `CREATE API` in the script.
+
+---
+
+## CREATE RPC
+
+Generate a JSON-RPC 2.0 service project alongside the main API. Each entity gets a single `POST /rpc/{entity}` endpoint that dispatches to standard methods (`GetById`, `GetAll`, `Insert`, `Update`, `Delete`) plus any `FindBy*` methods defined via `##` column annotations.
+
+**At least one of `SERVICE` or `CONTROLLERS` must be specified** — `CREATE RPC;` alone is a parse error. Both may appear in the same command.
+
+```wrm
+CREATE RPC <SERVICE|CONTROLLERS|SERVICE CONTROLLERS> [OVERWRITE] [CLEAR] [FORMAT] [BUILD]
+           [HTTP=<port>] [HTTPS=<port>] [TABLES (<table1>, <table2>, ...)] [PATH '<path>'];
+```
+
+| Option | Description |
+|--------|-------------|
+| `SERVICE` | Scaffold the full RPC service project (`Program.cs`, appsettings, csproj, base classes, JSON-RPC models) |
+| `CONTROLLERS` | Generate per-entity JSON-RPC 2.0 dispatcher controllers |
+| `OVERWRITE` | Overwrite existing files without deleting anything first |
+| `CLEAR` | Remove old files before generating. For `SERVICE`: deletes the entire `{ProjectName}Rpc\` folder. For `CONTROLLERS` only: clears the `Controllers\` subfolder. |
+| `FORMAT` | Auto-format generated C# code |
+| `BUILD` | Build the RPC project after generation |
+| `HTTP=<port>` | HTTP port for the RPC project. Default `5020`. Must differ from the API HTTP port. |
+| `HTTPS=<port>` | HTTPS port for the RPC project. Default `5021`. Must differ from the API HTTPS port. |
+| `TABLES (<list>)` | Restrict controller generation to the named tables only |
+| `PATH '<path>'` | Override output path for the RPC project |
+
+> **Port conflict guard:** WRM raises a hard error if the RPC HTTP/HTTPS ports clash with the main API ports. Use `HTTP=` and `HTTPS=` to set different ports.
+
+**Generated project structure:**
+
+```
+ProjectNameRpc/
+  Controllers/
+    RpcBaseController.cs          ← base class (helper methods: JsonRpcResult, JsonRpcError, etc.)
+    {Entity}RpcController.cs      ← per-entity dispatcher (one per non-hidden, non-composite table)
+  Models/
+    JsonRpcRequest.cs             ← request envelope + TryGetParam<T> / GetDto<T> helpers
+    JsonRpcResponse.cs            ← response envelope
+    JsonRpcError.cs               ← error record + JSON-RPC 2.0 error codes
+  Services/
+    ServiceRegistrations.cs       ← DI registrations for repos / services
+  Program.cs
+  appsettings.json
+  {ProjectName}Rpc.csproj         ← references {ProjectName}Data.csproj
+```
+
+**JSON-RPC 2.0 protocol:**
+
+```
+POST /rpc/{entity}
+Content-Type: application/json
+
+{ "jsonrpc": "2.0", "method": "GetById", "params": { "{entity_id}": 1 }, "id": 1 }
+```
+
+**Methods auto-generated per entity:**
+
+| Method | Description |
+|--------|-------------|
+| `GetById` | Fetch a single record by primary key |
+| `GetAll` | Fetch all records (org-scoped if `ORGANISATIONS` feature active) |
+| `Insert` | Create a new record from `params` DTO |
+| `Update` | Update an existing record from `params` DTO |
+| `Delete` | Soft-delete (`is_deleted = true`) or hard-delete depending on the feature |
+| `FindBy{Column}` | One method per `##` column annotation |
+
+Read-only (`READONLY` annotation) and composite tables are skipped.
+
+Common combinations:
+```wrm
+-- Scaffold RPC project + generate all entity controllers
+CREATE RPC SERVICE CONTROLLERS;
+
+-- Regenerate controllers only (project already scaffolded)
+CREATE RPC CONTROLLERS CLEAR;
+
+-- Custom ports to avoid clash with API (5010/5011) and MCP (5020/5021)
+CREATE RPC SERVICE HTTP=5030 HTTPS=5031 CLEAR;
+CREATE RPC CONTROLLERS CLEAR;
+
+-- Generate controllers for a subset of tables only
+CREATE RPC CONTROLLERS TABLES (products, orders);
+```
+
+`CREATE RPC` must appear **after** `CREATE MODELS` in the script.
 
 ---
 
@@ -442,7 +584,9 @@ Commands must appear in this order:
 5. `CREATE MODEL FLAT/TREE` (after CREATE MODELS)
 6. `CREATE LOOKUP` (after CREATE MODELS)
 7. `CREATE API` (after CREATE MODELS)
-8. `CREATE COMPONENTS` (after CREATE API or with STAGE)
-9. `CREATE AZURE` (after CREATE MODELS)
+8. `CREATE MCP` (after CREATE MODELS, typically after CREATE API)
+9. `CREATE RPC` (after CREATE MODELS, typically after CREATE API)
+10. `CREATE COMPONENTS` (after CREATE API or with STAGE)
+11. `CREATE AZURE` (after CREATE MODELS)
 
 Or use `STAGE` to skip to a specific point.

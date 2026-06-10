@@ -24,6 +24,7 @@ Multiple keywords are comma-separated. A human-readable description can follow t
 | `USESERVICE` | Forces generation of a service layer class even if the table wouldn't normally get one. |
 | `ASQUERY` | Repository uses raw SQL queries instead of ORM-style Dapper mapping. Auto-applied to tables with geometry columns. |
 | `NOTESTCASES` | Skips test case and test data generation for this table. |
+| `SORT <col> [ASC\|DESC]` | Sets the default sort order for `GetAll` / `GetAllAsync` queries on this table. `<col>` is the snake_case column name. Direction defaults to `ASC` if omitted. Example: `SORT last_name ASC`. |
 
 ### Examples
 
@@ -33,6 +34,8 @@ COMMENT ON TABLE orders IS 'PAGED, ATTACHMENTS';
 COMMENT ON TABLE audit_events IS 'EVENT, READONLY, NOATTACHMENTS, NOTESTCASES';
 COMMENT ON TABLE system_configs IS 'READONLY, HIDE';
 COMMENT ON TABLE products IS 'PAGED, Catalogue of sellable products';
+COMMENT ON TABLE employees IS 'SORT last_name ASC';
+COMMENT ON TABLE news_articles IS 'SORT published_at DESC';
 ```
 
 ---
@@ -46,6 +49,9 @@ Set with: `COMMENT ON COLUMN table_name.column_name IS 'KEYWORD[, description]';
 | `##` | Generates a `FindBy{ColumnName}()` repository method and corresponding API endpoint. Apply to natural lookup keys and all FK columns. |
 | `##&{field}` | Generates a `FindBy{ColumnName}By{Field}()` method — a scoped/filtered lookup. The `{field}` is a second column on the same table used to filter results (typically `organisation_id`). |
 | `## PAGED` | Same as `##` but the generated FindBy method is paginated. Use when the lookup could return many rows. |
+| `##, SORT <col> [ASC\|DESC]` | As `##`, and the generated `FindBy` method includes an `ORDER BY <col>` clause. Direction defaults to `ASC`. |
+| `##, TOP <n>` / `##, LIMIT <n>` | As `##`, and the generated `FindBy` method includes a `LIMIT <n>` / `TOP` clause. `TOP` and `LIMIT` are synonyms. |
+| `##, SORT <col> [ASC\|DESC] TOP <n>` | Combines sort and limit — generates `FindByOrdered{Sorted}Limited{ColumnName}()`. |
 | `NAME` | Marks this column as the primary human-readable name/title for the entity. Used in generated dropdowns, labels, and display components. |
 | `HIDE` | Column is excluded from generated DTOs and API responses. Data exists in the database and DbModel but is never exposed. Use for password hashes, internal tokens, system flags. |
 | `SHOW` | Explicitly includes a column in responses in soft-delete scenarios where it might otherwise be suppressed. |
@@ -70,6 +76,32 @@ COMMENT ON COLUMN role_permissions.role_id IS '##&organisation_id';
 -- Find entity_configs by entity_type and entity_id together
 COMMENT ON COLUMN entity_configs.entity_type IS '##&entity_id';
 ```
+
+### `##, SORT` / `##, TOP` / `##, LIMIT` — ordered and limited FindBy
+
+After the comma in a `##` comment you can place `SORT <col> [ASC|DESC]` and/or `TOP <n>` / `LIMIT <n>` directives (space-separated, order does not matter). WRM uses these to generate specialised method variants:
+
+| Directives | Generated method prefix | Example method name |
+|---|---|---|
+| (none) | `FindBy` | `FindByOrganisationId()` |
+| `SORT col` | `FindByOrdered` | `FindByOrderedOrganisationId()` |
+| `TOP n` / `LIMIT n` | `FindByLimited` | `FindByLimitedOrganisationId()` |
+| `SORT col TOP n` | `FindByOrderedLimited` | `FindByOrderedLimitedOrganisationId()` |
+
+Tables that use any SORT/LIMIT annotation automatically use the raw-SQL repository template (`RepoAsQuery = true`) because Dapper ORM cannot parameterise `ORDER BY` / `LIMIT`.
+
+```sql
+-- Most recent 10 events for a connection
+COMMENT ON COLUMN sync_events.connection_id IS '##, SORT synced_at DESC TOP 10';
+
+-- All records for a user, ordered by name
+COMMENT ON COLUMN items.owner_user_id IS '##, SORT item_name ASC';
+
+-- Scoped lookup with limit (##& syntax also supports SORT/LIMIT)
+COMMENT ON COLUMN messages.sender_user_id IS '##&organisation_id, SORT sent_at DESC LIMIT 50';
+```
+
+The same column can carry only one `##` directive — if you need both a plain `FindBy` and an ordered variant, use `CREATE LOOKUP` for the second form.
 
 ### Examples
 
@@ -126,3 +158,33 @@ CREATE TABLE venues (
     venue_name VARCHAR(200) NOT NULL
 );
 ```
+
+---
+
+## Special Column Type Handling
+
+WRM detects certain PostgreSQL column types and adjusts generated code automatically — **no `COMMENT ON COLUMN` annotation is required**.
+
+### JSONB / JSON columns
+
+Columns with data type `jsonb` or `json` are handled transparently:
+
+- **DapperWriter:** INSERT, UPDATE, and UPSERT SQL include an explicit `::jsonb` cast so Dapper can write the column correctly (e.g. `@config::jsonb`).
+- **ModelWriter:** The DbModel property receives `[Write(false)]` (Dapper.Contrib attribute), which tells Dapper.Contrib to skip this column in its auto-generated SQL. WRM's own `DapperWriter`-generated SQL handles the column directly with the `::jsonb` cast.
+
+No `COMMENT ON COLUMN` is needed. Simply declare the column as `JSONB`:
+
+```sql
+CREATE TABLE integration_connections (
+    integration_connection_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    LIKE base.tracking INCLUDING DEFAULTS INCLUDING CONSTRAINTS,
+    name             TEXT  NOT NULL,
+    connection_config JSONB,          -- WRM handles ::jsonb cast automatically
+    is_active         BOOLEAN NOT NULL DEFAULT TRUE
+);
+```
+
+> **HIDE annotation + JSONB:** If the JSONB column stores sensitive data (credentials, configuration) that should not appear in API responses, combine with the `HIDE` annotation:
+> ```sql
+> COMMENT ON COLUMN integration_connections.connection_config IS 'HIDE';
+> ```
