@@ -328,4 +328,4 @@ wrm deploy docker-cloudflare
 | Skip to component gen | `SET STAGE API; CREATE COMPONENTS COREUI OVERWRITE;` |
 | Flat composite model | `CREATE MODEL FLAT <Name> FROM <table> HAVING <subtables>;` |
 | Custom frontend templates | `CREATE COMPONENTS USER TEMPLATES "<path>" PATH "<path>";` |
-| Full-featured project | `FEATURE AUTH` (pulls in USERS, ORGANISATIONS, BASE automatically) |
+| Full-featured project | `FEATURE AUTH` (pulls in USERS + BASE; add `FEATURE ORGANISATIONS` separately for multi-tenancy) |

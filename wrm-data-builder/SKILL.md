@@ -46,7 +46,7 @@ Read [FEATURE_ASSESSMENT.md](FEATURE_ASSESSMENT.md) and recommend features based
 If the user **explicitly names** a WRM feature, include it without question.
 
 Present recommended features to the user before proceeding:
-> "Based on your requirements I recommend these WRM features: **AUTH, FILEHANDLING**. AUTH brings in USERS, ORGANISATIONS, and BASE automatically. Shall I proceed with these, or would you like to adjust?"
+> "Based on your requirements I recommend these WRM features: **AUTH, FILEHANDLING**. AUTH brings in USERS and BASE automatically (ORGANISATIONS is NOT auto-included by AUTH — add that separately for multi-tenancy). Shall I proceed with these, or would you like to adjust?"
 
 Wait for confirmation or adjustment before continuing.
 

@@ -8,7 +8,7 @@ When designing PostgreSQL schemas for WormScript (WRM) projects, apply these rul
 
 **2. Recommend features** — confirm before generating SQL.
 - Users/login → `FEATURE USERS`
-- Auth/roles/permissions → `FEATURE AUTH` (includes USERS, ORGANISATIONS, BASE)
+- Auth/roles/permissions → `FEATURE AUTH` (includes USERS, BASE; does NOT include ORGANISATIONS)
 - Multiple clients/tenants → `FEATURE ORGANISATIONS`
 - File uploads → `FEATURE FILEHANDLING`
 - Metadata/tagging → `FEATURE ENTITYCONFIG`

@@ -20,8 +20,8 @@ Recommend features based on signals in the user's input. Present your recommenda
 | Signal | Feature |
 |---|---|
 | Users, login, accounts, passwords | USERS (→ BASE) |
-| Roles, permissions, access control | AUTH (→ USERS, ORGANISATIONS, BASE) |
-| Multiple clients, tenants, organisations | ORGANISATIONS (→ BASE) |
+| Roles, permissions, access control | AUTH (→ USERS, BASE; does NOT include ORGANISATIONS) |
+| Multiple clients, tenants, organisations | ORGANISATIONS (→ BASE + AUTH + USERS) |
 | File upload, attachments, documents | FILEHANDLING (→ ORGANISATIONS, USERS, BASE) |
 | Metadata, tags, key-value config | ENTITYCONFIG (→ BASE) |
 | Dynamic forms, configurable fields | FORMS |

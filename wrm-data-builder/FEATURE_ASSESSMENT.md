@@ -20,7 +20,7 @@ Signals:
 
 ---
 
-### ORGANISATIONS (10-organisations.psql)
+### ORGANISATIONS (10-organisations.psql + 35-neworg-rbac.psql)
 **Tables created:** `organisation_types` (ENUM), `organisations`
 
 Signals:
@@ -29,7 +29,7 @@ Signals:
 - Data partitioned by company, organisation, club, school, charity
 - Need to separate data between different client groups
 
-Auto-includes: BASE
+Auto-includes: BASE, AUTH, USERS (adding ORGANISATIONS forces in the full authentication stack)
 
 ---
 
@@ -47,7 +47,7 @@ Auto-includes: BASE
 
 ---
 
-### AUTH (30-authorisation.psql + 35-neworg-rbac.psql)
+### AUTH (30-authorisation.psql)
 **Tables created:** `permissions`, `roles`, `user_roles`, `role_permissions`
 
 Signals:
@@ -58,7 +58,7 @@ Signals:
 - "Only certain users can..."
 - RBAC, ACL, security
 
-Auto-includes: USERS, ORGANISATIONS, BASE
+Auto-includes: USERS, BASE (not ORGANISATIONS — add that separately for multi-tenancy)
 
 ---
 
@@ -106,75 +106,86 @@ Auto-includes: BASE
 
 ---
 
-### FORMS (60-formmanagement.psql)
-**Tables created:** `form_definitions`, `field_definitions`
+### MESSAGING (80-messaging.psql)
+**Tables created:** `wrm_messaging` schema — `messages`, `message_recipients`, `conversations`, `conversation_posts`, `notifications`, `send_states` (ENUM), `priorities` (ENUM), plus supporting tables (10 total)
 
 Signals:
-- Dynamic/configurable forms
-- Forms whose fields change per organisation or use case
-- Survey or questionnaire builder
-- "Custom forms", "configurable fields", "dynamic data entry"
-- Field types: text, checkbox, dropdown, photo, signature, location
+- "Users send messages to each other"
+- Chat, conversations, threads
+- System notifications to users
+- Inbox, unread messages, delivery tracking
 
-Auto-includes: nothing (standalone)
-
----
-
-### SUBSCRIPTIONS (70-subscriptions.psql)
-**Tables created:** `subscription_tiers` (ENUM, pre-seeded: Free/Pro/Enterprise), `user_subscriptions`
-
-Signals:
-- Subscription plans, tiers, pricing
-- Free/paid/premium access levels
-- SaaS billing, feature gating by tier
-- "Subscription", "plan", "pricing tier"
-
-Auto-includes: USERS (implicitly — subscriptions are linked to users)
+Auto-includes: USERS, BASE
 
 ---
 
 ## Feature Dependency Graph
 
 ```
-AUTH ─────────────────► USERS ──────► BASE
-  │                       │
-  └──────────────────► ORGANISATIONS ─► BASE
+AUTH ──────────────────────────────► USERS ──────► BASE
 
-FILEHANDLING ─────────► ORGANISATIONS ─► BASE
-  │                       │
-  └──────────────────► USERS ──────► BASE
+ORGANISATIONS ─────────────────────► BASE
+  │                                   ▲
+  ├──────────────────────────────► AUTH ─► USERS ─► BASE
+  └──────────────────────────────► USERS ──────► BASE
+
+FILEHANDLING ─────────────────────► ORGANISATIONS ─► (see above)
+  │
+  └──────────────────────────────► USERS ──────► BASE
+
+SUBSCRIBERS ──────────────────────► AUTH ─► USERS ─► BASE
+MULTIAPP    ──────────────────────► AUTH ─► USERS ─► BASE
 
 ENTITYCONFIG ──────────────────────► BASE
 INTEGRATIONS ──────────────────────► BASE
-ORGANISATIONS ─────────────────────► BASE
-USERS ─────────────────────────────► BASE
-FORMS ─────────────────────────────► (standalone)
-SUBSCRIPTIONS ─────────────────────► (requires USERS tables)
+MESSAGING    ──────────────────────► USERS ──────► BASE
+
+GRAPHQL     (standalone — no dependencies)
+ADDITIONAL  (standalone)
+REDIS       (standalone — optional connection string)
+RABBITMQ    (standalone — optional connection string)
+SOFT DELETE (standalone — auto-includes BASE)
+HARD DELETE (standalone)
+SWAGGER     (standalone — enabled by default)
+NOSWAGGER   (standalone)
+RPC         (standalone — but use CREATE RPC SERVICE to generate the RPC project)
 ```
 
-When recommending AUTH, you automatically include: USERS, ORGANISATIONS, BASE.
-When recommending FILEHANDLING, you automatically include: ORGANISATIONS, USERS, BASE.
+> **Key distinction:** AUTH does NOT auto-include ORGANISATIONS. It is ORGANISATIONS that auto-includes AUTH (and transitively BASE + USERS). Writing `FEATURE AUTH` alone gives you authentication without multi-tenancy. Writing `FEATURE ORGANISATIONS` forces in the full auth stack.
+
+When recommending AUTH, you automatically include: USERS, BASE.
+When recommending ORGANISATIONS, you automatically include: BASE, AUTH, USERS.
+When recommending FILEHANDLING, you automatically include: ORGANISATIONS, USERS, BASE (and AUTH transitively via ORGANISATIONS).
+When recommending MESSAGING, you automatically include: USERS, BASE.
 
 ---
 
 ## .wrm Feature Keywords
 
-| Feature | .wrm Keyword |
-|---|---|
-| BASE | `FEATURE BASE` |
-| ORGANISATIONS | `FEATURE ORGANISATIONS` |
-| USERS | `FEATURE USERS` |
-| AUTH | `FEATURE AUTH` |
-| ENTITYCONFIG | `FEATURE ENTITYCONFIG` |
-| FILEHANDLING | `FEATURE FILEHANDLING` |
-| FORMS | `FEATURE FORMS` |
-| SUBSCRIPTIONS | `FEATURE SUBSCRIPTIONS` |
-| INTEGRATIONS | `FEATURE INTEGRATIONS` |
-| GraphQL API | `FEATURE GRAPHQL` |
-| MCP server | `FEATURE MCP` |
-| OpenAPI/Swagger | `FEATURE SWAGGER` (default on) |
-| Soft delete | `FEATURE SOFT DELETE` |
-| Hard delete | `FEATURE HARD DELETE` |
+The table below lists every valid `FEATURE` keyword accepted by the parser. Writing any other value raises *"Unknown feature"* and aborts the build.
+
+| Feature | .wrm Keyword | Notes |
+|---|---|---|
+| BASE | `FEATURE BASE` | Auto-included by most other features |
+| ORGANISATIONS | `FEATURE ORGANISATIONS` | Auto-includes BASE + AUTH + USERS (forces full auth stack) |
+| USERS | `FEATURE USERS` | Auto-includes BASE |
+| AUTH | `FEATURE AUTH` (or `FEATURE AUTHENTICATION`) | Auto-includes BASE + USERS (does NOT include ORGANISATIONS) |
+| ENTITYCONFIG | `FEATURE ENTITYCONFIG` (or `FEATURE CONFIG`) | Auto-includes BASE |
+| FILEHANDLING | `FEATURE FILEHANDLING` | Auto-includes BASE + ORGANISATIONS + USERS (and AUTH transitively) |
+| GRAPHQL | `FEATURE GRAPHQL` | HotChocolate GraphQL layer |
+| MULTIAPP | `FEATURE MULTIAPP` | Multi-application project layout; auto-includes AUTH (+ BASE + USERS) |
+| SUBSCRIBERS | `FEATURE SUBSCRIBERS` | Event subscriber scaffolding; auto-includes BASE + USERS + AUTH |
+| MESSAGING | `FEATURE MESSAGING` | Direct messages, conversations, notifications; auto-includes BASE + USERS |
+| INTEGRATIONS | `FEATURE INTEGRATIONS` (or `FEATURE INTEGRATION`) | External-system connections + mappings; auto-includes BASE |
+| ADDITIONAL | `FEATURE ADDITIONAL` | Additional controller scaffolding hooks |
+| REDIS | `FEATURE REDIS ['<conn>']` | Distributed caching; optional quoted connection string |
+| RABBITMQ | `FEATURE RABBITMQ ['<conn>']` | RabbitMQ publishing; optional quoted connection string |
+| Swagger (default) | `FEATURE SWAGGER` | Enabled by default; explicit only if previously disabled |
+| Disable Swagger | `FEATURE NOSWAGGER` | Disables Swagger/OpenAPI |
+| Soft delete | `FEATURE SOFT DELETE` | `is_deleted` column; auto-includes BASE; mutually exclusive with HARD DELETE |
+| Hard delete | `FEATURE HARD DELETE` | Physical row removal; mutually exclusive with SOFT DELETE |
+
+> ⚠️ **Not features:** `MCP`, `AZURE`, `FORMS`, and `SUBSCRIPTIONS` are **not** valid `FEATURE` keywords. MCP is enabled via `CREATE MCP SERVICE/CONTROLLERS`; Azure via `CREATE AZURE CONTAINER/FUNCTIONS`. Using them as `FEATURE` lines raises a parse error. Note: `FEATURE RPC` IS accepted by the parser but the actual RPC project is generated by `CREATE RPC SERVICE/CONTROLLERS` — you rarely need to write `FEATURE RPC` explicitly.
 
 ---
 
@@ -183,14 +194,15 @@ When recommending FILEHANDLING, you automatically include: ORGANISATIONS, USERS,
 | Feature | Script |
 |---|---|
 | BASE | `00-base.psql` |
-| ORGANISATIONS | `10-organisations.psql` |
+| ORGANISATIONS | `10-organisations.psql`, `35-neworg-rbac.psql` |
 | USERS | `20-users.psql` |
-| AUTH | `30-authorisation.psql`, `35-neworg-rbac.psql` |
+| AUTH | `30-authorisation.psql` |
 | ENTITYCONFIG | `40-entityconfig.psql` |
 | FILEHANDLING | `50-entityattachments.psql` |
 | INTEGRATIONS | `57-integrations.psql` |
-| FORMS | `60-formmanagement.psql` |
-| SUBSCRIPTIONS | `70-subscriptions.psql` |
+| MULTIAPP | `65-multiapp.psql` |
+| SUBSCRIBERS | `70-subscriptions.psql` |
+| MESSAGING | `80-messaging.psql` |
 | PostGIS/pgcrypto | `90-extensions.psql` |
 
 WRM runs these feature scripts automatically at build time based on the `FEATURE` directives in the `.wrm` file. The user does **not** need to include `DATABASE RUN` for these — only for their own SQL files.

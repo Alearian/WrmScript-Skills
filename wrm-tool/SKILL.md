@@ -183,7 +183,7 @@ The script must contain **exactly one** `CREATE API SERVICE` (for `wrm run` / `w
 
 ### Step 8: Deploy
 
-`wrm deploy` runs `make-devcert.ps1` (HTTPS dev cert) followed by the chosen `publish-<target>.ps1` script that `CREATE API SERVICE` generates under `<ProjectName>Service/Development/`.
+`wrm deploy` runs the API project's `make-devcert.ps1` (HTTPS dev cert, in `<ProjectName>Api/Development/`) followed by the chosen `publish-<target>.ps1` script, which lives in the **solution-root** `Development/` folder (alongside `Development/Docker/`).
 
 ```bash
 wrm deploy                       # default → publish-docker.ps1
@@ -205,9 +205,9 @@ See [FEATURES.md](FEATURES.md) for full details on what each feature creates.
 | User Need | How to enable |
 |---|---|
 | Audit timestamps (created_at, updated_at, is_deleted) | `FEATURE BASE` |
-| Multiple organisations / tenants | `FEATURE ORGANISATIONS` (auto-includes BASE) |
+| Multiple organisations / tenants | `FEATURE ORGANISATIONS` (auto-includes BASE + AUTH + USERS) |
 | User accounts, profiles, groups | `FEATURE USERS` (auto-includes BASE) |
-| Login, JWT auth, roles, permissions | `FEATURE AUTH` (auto-includes BASE, ORGANISATIONS, USERS) |
+| Login, JWT auth, roles, permissions | `FEATURE AUTH` (auto-includes BASE + USERS; does NOT include ORGANISATIONS) |
 | File uploads, document attachments | `FEATURE FILEHANDLING` (auto-includes BASE, ORGANISATIONS, USERS) |
 | Key-value metadata on entities | `FEATURE ENTITYCONFIG` (auto-includes BASE) |
 | GraphQL API layer | `FEATURE GRAPHQL` |
@@ -277,11 +277,11 @@ Custom templates: `CREATE COMPONENTS USER TEMPLATES "<path>" PATH "<path>"`
 ## Deployment
 
 ### Docker (local)
-`CREATE API SERVICE` generates `docker-compose.yml`, `Dockerfile`, and the `Development/publish-*.ps1` scripts in the project root. The simplest path is:
+The build emits Docker assets at the **solution root**: `Development/Docker/` (`docker-compose*.yml`, `Dockerfile.api`/`.mcp`/`.subscriber`) and `Development/publish-*.ps1` scripts. The simplest path is:
 ```bash
 wrm deploy docker
 ```
-This runs `make-devcert.ps1` then `publish-docker.ps1`. To run the raw compose stack manually instead: `docker compose up`.
+This runs the API project's `make-devcert.ps1` then the solution-root `publish-docker.ps1`. To run the raw compose stack manually instead: `cd Development && docker compose -f Docker/docker-compose.yml up`.
 
 ### Azure Container Apps
 ```wrm

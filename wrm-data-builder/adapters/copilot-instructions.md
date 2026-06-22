@@ -13,7 +13,7 @@ Present recommendations and confirm before generating SQL.
 | Signal | Feature |
 |---|---|
 | Users, login, accounts | `FEATURE USERS` |
-| Roles, permissions | `FEATURE AUTH` (includes USERS, ORGANISATIONS, BASE) |
+| Roles, permissions | `FEATURE AUTH` (includes USERS, BASE; does NOT include ORGANISATIONS) |
 | Multiple tenants/orgs | `FEATURE ORGANISATIONS` |
 | File uploads, attachments | `FEATURE FILEHANDLING` |
 | Metadata, tags | `FEATURE ENTITYCONFIG` |

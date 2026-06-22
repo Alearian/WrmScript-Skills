@@ -437,13 +437,22 @@ MyProject/
 │   ├── UserDbQuickTests.cs
 │   └── MyProject.Tests.csproj
 │
-├── docker/                        # Docker Configurations
-│   ├── docker-compose.yml
-│   ├── docker-compose.prod.yml
-│   └── Dockerfile
+├── Development/                   # Solution-root Docker & deployment (not per-project)
+│   ├── Docker/
+│   │   ├── docker-compose.yml
+│   │   ├── docker-compose.prod.yml
+│   │   ├── Dockerfile.api
+│   │   ├── Dockerfile.mcp         # when an MCP project is generated
+│   │   └── Dockerfile.subscriber  # when a RabbitMQ subscriber is generated
+│   ├── publish-docker*.ps1
+│   └── .env
+│
+├── Documentation/                 # Markdown guides
 │
 └── MyProject.sln                  # Solution file
 ```
+
+> Each backend project keeps only a slim `Development/` folder (`make-devcert.ps1`, app `.env.*`, `.gitignore`).
 
 ---
 
