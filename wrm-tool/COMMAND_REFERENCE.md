@@ -12,7 +12,7 @@ The `wrm` CLI is invoked from a project root containing a `.wrm/` folder. When a
 
 | Command | Description |
 |---|---|
-| `wrm init <ProjectName> [react\|coreui]` | Scaffolds `.wrm/<ProjectName>.wrm` and `.wrm/<ProjectName>.sql` starter files |
+| `wrm init [<ProjectName>] [react\|coreui]` | Scaffolds `.wrm/<ProjectName>.wrm` and `.wrm/<ProjectName>.sql` starter files. `<ProjectName>` is optional — if omitted, the current folder name is used |
 | `wrm build [<script>]` | Executes the build script — reads schema, generates models/controllers/components |
 | `wrm run [<script>]` | Runs the generated API service via `dotnet run` |
 | `wrm run api [<script>]` | Same as `wrm run` (explicit API target) |
@@ -461,7 +461,7 @@ CREATE TESTDATA IFEMPTY TESTCASES 10;   -- Only if tables are empty
 Generate frontend web components for all tables.
 
 ```wrm
-CREATE COMPONENTS <REACT|COREUI|VUE|ANGULAR|USER> [TEMPLATES '<path>'] [PATH '<path>'] [OVERWRITE] [CLEAR] [CASE <convention>];
+CREATE COMPONENTS <REACT|COREUI|VUE|ANGULAR|USER|TAILCOMPLETE> [VERSION '<ver>'] [TEMPLATES '<path>'] [PATH '<path>'] [OVERWRITE] [CLEAR] [CASE <convention>];
 ```
 
 | Option | Description |
@@ -471,7 +471,9 @@ CREATE COMPONENTS <REACT|COREUI|VUE|ANGULAR|USER> [TEMPLATES '<path>'] [PATH '<p
 | `VUE` | Generate Vue.js components |
 | `ANGULAR` | Generate Angular components |
 | `USER` | Use custom user-provided templates |
-| `TEMPLATES '<path>'` | Path to custom template directory |
+| `TAILCOMPLETE` | Generate the **TailComplete** feature-complete React/Tailwind admin site from the external NPM package `@furniss/wrm-tailcomplete` (see below) |
+| `VERSION '<ver>'` | Pin the NPM template package version (TailComplete). Omit for `latest` |
+| `TEMPLATES '<path>'` | Path to custom template directory. For `TAILCOMPLETE`, use a **local checkout** of the package instead of downloading from npm |
 | `PATH '<path>'` | Target output path for components |
 | `OVERWRITE` | Replace existing component files |
 | `CLEAR` | Remove old components before generating |
@@ -482,7 +484,26 @@ Examples:
 CREATE COMPONENTS REACT;
 CREATE COMPONENTS COREUI OVERWRITE;
 CREATE COMPONENTS USER TEMPLATES "MyReact/UXTemplates" PATH "MyReact" OVERWRITE;
+CREATE COMPONENTS TAILCOMPLETE PATH "MyAppWeb";                     -- downloads @furniss/wrm-tailcomplete@latest
+CREATE COMPONENTS TAILCOMPLETE VERSION '1.2.0' PATH "MyAppWeb";     -- pins a version
+CREATE COMPONENTS TAILCOMPLETE TEMPLATES "C:/src/WebTemplates/TailComplete" PATH "MyAppWeb";  -- local checkout, no npm
 ```
+
+### TailComplete web templates
+
+`TAILCOMPLETE` generates a complete, polished admin website whose surface is driven by the
+**FEATUREs** enabled on your `CREATE PROJECT` — not by your schema. WRM strips the areas you
+haven't enabled:
+
+- No `AUTH` → the app opens straight to the dashboard (no sign-in).
+- No `ORGANISATIONS` → no org switcher/overview, no organisation header.
+- `USERS` → People admin; `FILEHANDLING` → Files; `MESSAGING` → notifications;
+  `INTEGRATIONS` → integrations; `LINKEDIN` → Sign-in-with-LinkedIn; `CHATBOT` → AI chat widget.
+
+WRM resolves the template in this order: a local checkout given via `TEMPLATES '<path>'`, then a
+local cache, then a download of `@furniss/wrm-tailcomplete` (`npm pack`) into
+`%LOCALAPPDATA%\wrm\web-templates\`. The raw package also runs standalone (`npm install && npm
+run build`) as the "all features on" app — the `//WRM_IF` markers are ordinary TS comments.
 
 ---
 

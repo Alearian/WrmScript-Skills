@@ -286,6 +286,35 @@ CREATE PROJECT MyApp
 
 ---
 
+### CHATBOT
+**Keyword:** `FEATURE CHATBOT`
+**Requires:** nothing (standalone; composes with AUTH for user context)
+
+Adds an AI chatbot capability with **server-side proxy** support. Generates a `ChatbotController`
+(namespace `ProjectApi.Chatbot`, route `POST /api/chatbot/message`) that forwards a chat message
+plus prior history to the configured MCP / AI service and returns its reply — keeping the MCP URL
+and any credentials off the browser.
+
+**Configuration** (`appsettings.json`):
+| Key | Default | Description |
+|-----|---------|-------------|
+| `Chatbot:McpUrl` | `https://localhost:6011` | MCP / AI service base URL |
+| `Chatbot:ApiKey` | *(empty)* | Optional API key sent as `X-Api-Key` |
+
+**Frontend:** Web templates (e.g. TailComplete) gate their chat widget on `HasFeature("CHATBOT")`,
+so the widget appears only when the feature is enabled.
+
+**When to use:** The project should offer an in-app AI assistant backed by an MCP server.
+
+```wrm
+CREATE PROJECT MyApp
+    CONNECTION POSTGRES '...'
+    FEATURE AUTH
+    FEATURE CHATBOT;
+```
+
+---
+
 ### ADDITIONAL
 **Keyword:** `FEATURE ADDITIONAL`
 **Requires:** None

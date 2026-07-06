@@ -64,7 +64,7 @@ wrm init <ProjectName> <react|coreui>
 cd <ProjectName>
 ```
 
-This creates `.wrm/<ProjectName>.wrm` and `.wrm/<ProjectName>.sql` starter files.
+This creates `.wrm/<ProjectName>.wrm` and `.wrm/<ProjectName>.sql` starter files. `<ProjectName>` is optional — running `wrm init` on its own uses the current folder name.
 
 ---
 
