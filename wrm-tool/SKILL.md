@@ -211,6 +211,8 @@ See [FEATURES.md](FEATURES.md) for full details on what each feature creates.
 | File uploads, document attachments | `FEATURE FILEHANDLING` (auto-includes BASE, ORGANISATIONS, USERS) |
 | Key-value metadata on entities | `FEATURE ENTITYCONFIG` (auto-includes BASE) |
 | GraphQL API layer | `FEATURE GRAPHQL` |
+| Sign in with LinkedIn (OIDC) | `FEATURE LINKEDIN` (auto-includes AUTH → BASE + USERS) |
+| In-app AI chatbot widget | `FEATURE CHATBOT` (standalone; server-side proxy to an MCP/AI service) |
 | Redis caching | `REDIS '<conn>'` CREATE PROJECT subcommand (auto-enables `FEATURE REDIS`) |
 | RPC-JSON command execution | `FEATURE RPC` |
 | AI / Model Context Protocol integration | `CREATE MCP SERVICE;` (top-level command — **not** a `FEATURE`) |
@@ -223,6 +225,8 @@ AUTH ──────► USERS ──────► BASE
 FILEHANDLING ─► ORGANISATIONS ─► BASE
             ├─► USERS ──────► BASE
 ENTITYCONFIG ─► BASE
+LINKEDIN ─► AUTH ─► USERS ─► BASE
+CHATBOT  (standalone — no auto-inclusions)
 ```
 
 **Quick rules:**
@@ -231,6 +235,8 @@ ENTITYCONFIG ─► BASE
 - "users", "accounts", "profiles" → `FEATURE USERS`
 - "file upload", "attachments", "documents" → `FEATURE FILEHANDLING`
 - "GraphQL" → `FEATURE GRAPHQL`
+- "sign in with LinkedIn", "LinkedIn login", "social login" → `FEATURE LINKEDIN`
+- "AI assistant", "chatbot", "chat widget" → `FEATURE CHATBOT`
 - "Redis" / "caching" → `REDIS 'host:port'` CREATE PROJECT subcommand
 - "AI tools", "MCP", "Model Context Protocol" → `CREATE MCP SERVICE;` (NOT a feature)
 - "Azure" / "deploy to Azure" → `CREATE AZURE CONTAINER ...` (NOT a feature)

@@ -119,6 +119,30 @@ Auto-includes: USERS, BASE
 
 ---
 
+### LINKEDIN (code-template feature — no SQL script)
+**Tables created:** none. Extends the AUTH stack with "Sign In with LinkedIn" (OpenID Connect).
+
+Signals:
+- "Sign in / log in with LinkedIn"
+- Social login, OAuth / OIDC sign-in
+- LinkedIn-based user provisioning
+
+Auto-includes: AUTH (→ USERS, BASE)
+
+---
+
+### CHATBOT (code-template feature — no SQL script)
+**Tables created:** none. Adds a server-side `ChatbotController` that proxies to an MCP/AI service, plus a web chat widget.
+
+Signals:
+- "AI assistant" / "chatbot" / "in-app chat"
+- Chat widget backed by an MCP or AI service
+- Server-side proxy so the MCP URL / key stays off the browser
+
+Auto-includes: nothing (standalone; composes with AUTH for user context)
+
+---
+
 ## Feature Dependency Graph
 
 ```
@@ -139,8 +163,10 @@ MULTIAPP    ──────────────────────�
 ENTITYCONFIG ──────────────────────► BASE
 INTEGRATIONS ──────────────────────► BASE
 MESSAGING    ──────────────────────► USERS ──────► BASE
+LINKEDIN     ──────────────────────► AUTH ─► USERS ─► BASE
 
 GRAPHQL     (standalone — no dependencies)
+CHATBOT     (standalone — no dependencies; composes with AUTH)
 ADDITIONAL  (standalone)
 REDIS       (standalone — optional connection string)
 RABBITMQ    (standalone — optional connection string)
@@ -157,6 +183,8 @@ When recommending AUTH, you automatically include: USERS, BASE.
 When recommending ORGANISATIONS, you automatically include: BASE, AUTH, USERS.
 When recommending FILEHANDLING, you automatically include: ORGANISATIONS, USERS, BASE (and AUTH transitively via ORGANISATIONS).
 When recommending MESSAGING, you automatically include: USERS, BASE.
+When recommending LINKEDIN, you automatically include: AUTH, USERS, BASE.
+CHATBOT is standalone — it adds no dependencies.
 
 ---
 
@@ -177,6 +205,8 @@ The table below lists every valid `FEATURE` keyword accepted by the parser. Writ
 | SUBSCRIBERS | `FEATURE SUBSCRIBERS` | Event subscriber scaffolding; auto-includes BASE + USERS + AUTH |
 | MESSAGING | `FEATURE MESSAGING` | Direct messages, conversations, notifications; auto-includes BASE + USERS |
 | INTEGRATIONS | `FEATURE INTEGRATIONS` (or `FEATURE INTEGRATION`) | External-system connections + mappings; auto-includes BASE |
+| LINKEDIN | `FEATURE LINKEDIN` | "Sign In with LinkedIn" (OIDC); auto-includes AUTH (+ USERS + BASE) |
+| CHATBOT | `FEATURE CHATBOT` | In-app AI chatbot; server-side MCP/AI proxy; standalone (no auto-includes) |
 | ADDITIONAL | `FEATURE ADDITIONAL` | Additional controller scaffolding hooks |
 | REDIS | `FEATURE REDIS ['<conn>']` | Distributed caching; optional quoted connection string |
 | RABBITMQ | `FEATURE RABBITMQ ['<conn>']` | RabbitMQ publishing; optional quoted connection string |
@@ -203,6 +233,8 @@ The table below lists every valid `FEATURE` keyword accepted by the parser. Writ
 | MULTIAPP | `65-multiapp.psql` |
 | SUBSCRIBERS | `70-subscriptions.psql` |
 | MESSAGING | `80-messaging.psql` |
+| LINKEDIN | *(none — code-template feature, no schema tables)* |
+| CHATBOT | *(none — code-template feature, no schema tables)* |
 | PostGIS/pgcrypto | `90-extensions.psql` |
 
 WRM runs these feature scripts automatically at build time based on the `FEATURE` directives in the `.wrm` file. The user does **not** need to include `DATABASE RUN` for these — only for their own SQL files.

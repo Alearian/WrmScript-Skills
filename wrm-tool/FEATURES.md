@@ -315,6 +315,32 @@ CREATE PROJECT MyApp
 
 ---
 
+### LINKEDIN
+**Keyword:** `FEATURE LINKEDIN`
+**Requires:** `AUTH` (auto-included — which itself pulls in `BASE` + `USERS`)
+
+Adds **"Sign In with LinkedIn using OpenID Connect"** to the auth stack. The confidential parts —
+the client secret and the authorization-code → token exchange — happen **server-side** in
+`LinkedInOAuthService`, wired into the existing `AuthController`; the SPA never sees the secret.
+Users are JIT-provisioned on first sign-in (assigned `DefaultOrganisationId`).
+
+**Configuration:** the client credentials come from environment variables
+`LINKEDIN_CLIENT_ID` / `LINKEDIN_CLIENT_SECRET`. The non-secret OIDC endpoint URLs
+(`TokenUrl`, `UserInfoUrl`) have sensible defaults and can be overridden under the `LinkedIn`
+section of `appsettings.json`. The feature is **inert until both credentials are supplied**.
+
+**When to use:** end users should be able to sign in with their LinkedIn account instead of
+(or alongside) a local username/password.
+
+```wrm
+CREATE PROJECT MyApp
+    CONNECTION POSTGRES '...'
+    FEATURE AUTH
+    FEATURE LINKEDIN;
+```
+
+---
+
 ### ADDITIONAL
 **Keyword:** `FEATURE ADDITIONAL`
 **Requires:** None
@@ -421,6 +447,10 @@ FEATURE MESSAGING
         └─► FEATURE BASE
 FEATURE INTEGRATIONS
   └─► FEATURE BASE
+FEATURE LINKEDIN
+  └─► FEATURE AUTH
+        └─► FEATURE USERS ─► BASE
+FEATURE CHATBOT     (no dependencies — standalone; composes with AUTH for user context)
 FEATURE REDIS    ['<conn>']  (no dependencies — optional quoted connection string)
 FEATURE RABBITMQ ['<conn>']  (no dependencies — optional quoted connection string)
 ```
@@ -446,6 +476,8 @@ FEATURE RABBITMQ ['<conn>']  (no dependencies — optional quoted connection str
 | "publish events" / "RabbitMQ" / "message broker" | `FEATURE RABBITMQ 'amqp://guest:guest@localhost:5672/'` plus `PUBLISH=RABBITMQ` on the table comment |
 | "tags" / "custom metadata" / "key-value config" | `FEATURE ENTITYCONFIG` |
 | "connect to Jira / Slack / GitHub / AWS" / "external integrations" / "sync with external system" | `FEATURE INTEGRATIONS` |
+| "sign in with LinkedIn" / "LinkedIn login" / "social login" | `FEATURE LINKEDIN` (auto-includes `AUTH`) |
+| "AI assistant" / "chatbot" / "in-app chat widget" | `FEATURE CHATBOT` (standalone; proxies to an MCP/AI service) |
 | "no swagger" / "disable docs" | `FEATURE NOSWAGGER` |
 | "most real-world apps" | `FEATURE AUTH` (auto-includes BASE + USERS) |
 | "multi-tenant with login" | `FEATURE ORGANISATIONS` (auto-includes BASE + AUTH + USERS) |
